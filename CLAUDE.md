@@ -43,6 +43,7 @@ apps/
 packages/       — アプリをまたいで再利用する部品。アプリ固有の知識を持たない
   server-core/  — エラー、構造化ログ、入力検証、DynamoDB クライアント
   web-core/     — API クライアント、安全な localStorage
+  identity/     — 「このリクエストは誰か」（ゲスト認証。c.var.identity）
 infra/
   modules/      — 再利用する Terraform モジュール（static-site / http-api / app-table）
   bootstrap/    — tfstate と GitHub Actions の OIDC ロール（初回だけ手で apply）

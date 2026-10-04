@@ -24,6 +24,7 @@ apps/
 packages/       — アプリをまたいで再利用する部品
   server-core/  — エラー、構造化ログ、入力検証、DynamoDB クライアント
   web-core/     — API クライアント、安全な localStorage
+  identity/     — ゲスト認証（名前登録とゲストトークン）
 infra/
   modules/      — static-site / http-api / app-table
   bootstrap/    — tfstate と GitHub Actions の OIDC ロール（初回のみ手動 apply）
