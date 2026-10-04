@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createInMemoryGuestStore } from "@app/identity";
 import { createApp } from "./app.js";
 
 describe("createApp", () => {
@@ -20,6 +21,23 @@ describe("createApp", () => {
     await expect(res.json()).resolves.toEqual({
       error: { code: "NOT_FOUND", message: "GET /api/does-not-exist は存在しない" },
     });
+  });
+
+  it("ゲストを登録し、発行されたトークンで自分を取得できる", async () => {
+    const app = createApp({ guestStore: createInMemoryGuestStore() });
+
+    const created = await app.request("/api/guests", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "Alice" }),
+    });
+    const { token } = (await created.json()) as { token: string };
+    const me = await app.request("/api/guests/me", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    expect(created.status).toBe(201);
+    await expect(me.json()).resolves.toMatchObject({ guest: { kind: "guest", name: "Alice" } });
   });
 
   it("すべてのリクエストを構造化ログに残す", async () => {
