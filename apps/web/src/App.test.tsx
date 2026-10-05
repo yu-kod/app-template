@@ -1,20 +1,24 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
 import App from "./App";
+import { returningGuestSession } from "./test-utils/guest";
 import { renderWithProviders } from "./test-utils/render";
 
 describe("App", () => {
-  beforeEach(() => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(new Response(JSON.stringify({ status: "ok" })))
-    );
-  });
-
   it("/ でトップページを表示する", async () => {
     renderWithProviders(<App />, { route: "/" });
 
-    expect(await screen.findByRole("heading", { level: 1 })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "はじめる" })).toBeInTheDocument();
+  });
+
+  it("どのページでも、ヘッダーに自分の名前が出る", async () => {
+    renderWithProviders(<App />, { route: "/no-such-page", guestSession: returningGuestSession() });
+
+    const header = screen.getByRole("banner");
+    expect(header).toHaveTextContent("App Template");
+    expect(
+      await screen.findByRole("button", { name: "名前を変える（今: ねむいペンギン）" })
+    ).toBeInTheDocument();
   });
 
   it("存在しない URL では「ページが見つからない」を表示し、トップへ戻れる", async () => {
@@ -24,8 +28,6 @@ describe("App", () => {
 
     await user.click(screen.getByRole("link", { name: "トップへ戻る" }));
 
-    expect(await screen.findByRole("heading", { level: 1 })).not.toHaveTextContent(
-      "ページが見つからない"
-    );
+    expect(await screen.findByRole("button", { name: "はじめる" })).toBeInTheDocument();
   });
 });

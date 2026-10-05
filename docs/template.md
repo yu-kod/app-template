@@ -8,7 +8,7 @@ pop-art-trick / pusher-table（ログインなし・ロビーのあるオンラ�
 
 ```
 ① 土台           — このリポジトリをコピーして使う（設定、CI、CLAUDE.md、skills、Terraform の組み立て）
-② 共有部品       — packages/*（server-core / web-core / identity / これから game-platform）
+② 共有部品       — packages/*（server-core / web-core / identity / identity-client / これから game-platform）
                    infra/modules/*（static-site / http-api / app-table / これから cognito・websocket・scheduler）
 ③ アプリ固有     — apps/* の中身、docs/spec.md、CLAUDE.md の「このアプリ固有のルール」
 ```
@@ -82,6 +82,7 @@ app.get("/api/rooms/mine", requireIdentity(), (c) => ...c.var.identity...);
 - 期限は最後に使われてから最大 30 日。残りが半分を切ったときだけ延ばし、認証のたびには書き込まない
 - TTL の削除は遅れるので、認証のときにも期限を確認する
 - ゲーム型では、ゲスト（本人）とルームの席を分ける。席はルーム側でゲスト ID に紐づける
+- 名前を最初に聞かず、何かを始めるときに仮の名前で登録する流れは [guest-flow.md](guest-flow.md)
 
 ## ゲーム基盤（これから packages/game-platform として入れる）
 
@@ -96,7 +97,7 @@ pop-art-trick / pusher-table の比較から、次を共通部品にする（設
 
 ## これから足すもの
 
-- `packages/identity` の Cognito 方式と `infra/modules/cognito`、フロント側のゲストセッション
+- `packages/identity` の Cognito 方式と `infra/modules/cognito`
 - `packages/game-platform` と `infra/modules/websocket` / `infra/modules/scheduler`
 - Playwright の E2E（setnote の `frontend/e2e/` を移植）
 - CI 失敗時の自動修復と Dependabot の自動マージ（setnote の `ci-gate.yml`）
