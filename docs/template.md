@@ -74,7 +74,7 @@ app.get("/api/rooms/mine", requireIdentity(), (c) => ...c.var.identity...);
 
 | API | 内容 |
 |---|---|
-| `POST /api/guests` `{ name }` | 名前を登録し `{ guest, token }` を返す（トークンはこの1回だけ） |
+| `POST /api/guests` `{ name? }` | 名前を登録し `{ guest, token }` を返す（トークンはこの1回だけ）。名前を省略すると「ねむいペンギン」のような仮の名前を付ける |
 | `GET /api/guests/me` | トークンの持ち主 |
 | `PATCH /api/guests/me` `{ name }` | 名前を変える |
 

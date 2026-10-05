@@ -1,6 +1,7 @@
 import { errorHandler } from "@app/server-core";
 import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
+import { ANIMALS } from "./guest-name.js";
 import { createGuestRoutes, GUEST_NAME_MAX_LENGTH } from "./guest-routes.js";
 import { createGuestService } from "./guest-service.js";
 import { createInMemoryGuestStore } from "./guest-store.js";
@@ -16,7 +17,7 @@ function setup() {
   const app = new Hono<IdentityEnv>();
   app.onError(errorHandler);
   app.use(identity([service.authenticate]));
-  app.route("/api/guests", createGuestRoutes(service));
+  app.route("/api/guests", createGuestRoutes(service, { generateName: () => "ねむいペンギン" }));
 
   function request(method: string, path: string, init: { body?: unknown; token?: string } = {}) {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -39,6 +40,27 @@ describe("POST /api/guests", () => {
       guest: { kind: "guest", id: "guest-1", name: "Alice" },
       token: "token-1",
     });
+  });
+
+  it("名前を省略したら仮の名前を付ける（名前の入力で遊び始めるのを止めない）", async () => {
+    const res = await setup().request("POST", "/api/guests", { body: {} });
+
+    expect(res.status).toBe(201);
+    await expect(res.json()).resolves.toMatchObject({ guest: { name: "ねむいペンギン" } });
+  });
+
+  it("仮の名前の付け方を渡さなければ、形容詞と動物の名前を付ける", async () => {
+    const service = createGuestService({ store: createInMemoryGuestStore() });
+    const app = new Hono().route("/api/guests", createGuestRoutes(service));
+
+    const res = await app.request("/api/guests", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    });
+
+    const { guest } = (await res.json()) as { guest: { name: string } };
+    expect(ANIMALS.some((animal) => guest.name.endsWith(animal))).toBe(true);
   });
 
   it("名前の前後の空白は落とす", async () => {
