@@ -28,7 +28,7 @@ packages/       — アプリをまたいで再利用する部品
   identity-client/ — ブラウザ側のゲストセッションと React のフック
 infra/
   modules/      — static-site / http-api / app-table
-  bootstrap/    — tfstate と GitHub Actions の OIDC ロール（初回のみ手動 apply）
+  bootstrap/    — AWS アカウントの準備（tfstate バケットと GitHub Actions のロール）
 docs/           — 仕様書・設計書・デプロイ手順
 ```
 

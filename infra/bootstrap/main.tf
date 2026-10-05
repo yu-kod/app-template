@@ -1,31 +1,24 @@
-# ブートストラップ。
+# AWS アカウントの準備（アカウントにつき1回。アプリを足すときは repositories に足して再実行）。
 #
-# 本体（infra/）の Terraform が動くための土台だけを作る。
-#   - tfstate 用の S3 バケット
-#   - tfstate ロック用の DynamoDB テーブル
-#   - GitHub Actions が OIDC で引き受ける IAM ロール
+# 作るもの:
+#   - リポジトリごとの GitHub Actions 用ロール（2つ）
+#       deploy: production 環境のジョブだけが引き受けられる。terraform apply とデプロイに使う
+#       plan:   PR のジョブだけが引き受けられる。読み取り専用。PR に terraform plan の差分を出す
+#   - （必要なら）GitHub Actions 用の OIDC プロバイダー
 #
-# ここだけは tfstate の置き場所がまだ存在しないためローカル state で実行する。
-# 生成された terraform.tfstate は捨ててよい（作られるリソースは prevent_destroy 済み、
-# かつ以後この構成を変更することはほぼない）。
-#
-# ## 実行方法（PC 不要）
-#
-# AWS マネジメントコンソールの CloudShell で実行できる。コンソールにログインした
-# 権限がそのまま使われるため、アクセスキーの発行も aws configure も不要。
-#
-#   # CloudShell を開く（画面右上のターミナルアイコン）
-#   curl -fsSLo tf.zip https://releases.hashicorp.com/terraform/1.13.4/terraform_1.13.4_linux_amd64.zip
-#   unzip tf.zip && mkdir -p ~/bin && mv terraform ~/bin/ && export PATH=$HOME/bin:$PATH
-#   git clone https://github.com/<owner>/<repo>.git
-#   cd <repo>/infra/bootstrap
-#   terraform init && terraform apply -var project_name=<project> -var github_repo=<owner>/<repo>
-#
-# apply 後、出力された github_actions_role_arn を GitHub の
-# Settings → Secrets and variables → Actions に AWS_ROLE_ARN として登録する。
+# tfstate のバケットは create-state-bucket.sh が先に作る。この構成の state もそこへ置く。
+# 手順は docs/deploy.md「AWS アカウントの準備」。
 
 terraform {
-  required_version = ">= 1.9"
+  required_version = ">= 1.10"
+
+  # bucket と region は init のときに -backend-config で渡す（アカウント ID がバケット名に入るため）
+  backend "s3" {
+    key          = "bootstrap/terraform.tfstate"
+    encrypt      = true
+    use_lockfile = true
+  }
+
   required_providers {
     aws = {
       source  = "hashicorp/aws"
@@ -39,107 +32,9 @@ provider "aws" {
 
   default_tags {
     tags = {
-      Project   = var.project_name
+      Project   = "github-actions-bootstrap"
       ManagedBy = "terraform"
     }
-  }
-}
-
-variable "aws_region" {
-  description = "AWS リージョン"
-  type        = string
-  default     = "ap-northeast-1"
-}
-
-variable "project_name" {
-  description = "リソース名の接頭辞。infra/variables.tf の project_name と揃える"
-  type        = string
-}
-
-variable "github_repo" {
-  description = "このロールを引き受けられる GitHub リポジトリ（owner/repo）"
-  type        = string
-}
-
-variable "extra_assume_role_subs" {
-  description = <<-DESC
-    信頼ポリシーで追加で許可する sub クレームのパターン。
-
-    リポジトリや owner を過去にリネームしていると、GitHub が発行する OIDC トークンの
-    sub クレームが通常形式ではなく `repo:owner@ownerId/repo@repoId:...` という
-    ID 付きの形式になることがある。通常形式だけを許可していると
-    "Not authorized to perform sts:AssumeRoleWithWebIdentity" で引き受けに失敗する。
-
-    リポジトリをリネームしても repo id は変わらないため、名前の部分だけが変わる。
-    yu-kod/pusher-table と yu-kod/pop-art-trick で実際に発生し、CloudTrail で sub を確認した。
-    引き受けに失敗したら CloudTrail の AssumeRoleWithWebIdentity イベントで実際の sub を見て、ここに足す。
-    例: ["repo:yu-kod@48035533/pusher-table@1370943501:*"]
-
-    ワイルドカードを広げる（例: repo:yu-kod*/app*:*）と
-    yu-kod-foo/app-bar のような別リポジトリまで引き受けられてしまうため、
-    ID を明示したパターンだけを並べる。
-  DESC
-  type        = list(string)
-  default     = []
-}
-
-variable "create_github_oidc_provider" {
-  description = <<-DESC
-    GitHub Actions 用の OIDC プロバイダーを作るか。
-
-    OIDC プロバイダーは AWS アカウントに1つだけ存在できる。同じアカウントで
-    すでに別プロジェクトが GitHub Actions から OIDC を使っている場合は false にする。
-
-    確認方法:
-      aws iam list-open-id-connect-providers
-    出力に token.actions.githubusercontent.com が含まれていれば false。
-  DESC
-  type        = bool
-  default     = true
-}
-
-# ---- tfstate の置き場所 ----
-
-resource "aws_s3_bucket" "tfstate" {
-  bucket = "${var.project_name}-tfstate"
-
-  lifecycle {
-    prevent_destroy = true
-  }
-}
-
-resource "aws_s3_bucket_versioning" "tfstate" {
-  bucket = aws_s3_bucket.tfstate.id
-  versioning_configuration {
-    status = "Enabled"
-  }
-}
-
-resource "aws_s3_bucket_server_side_encryption_configuration" "tfstate" {
-  bucket = aws_s3_bucket.tfstate.id
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
-    }
-  }
-}
-
-resource "aws_s3_bucket_public_access_block" "tfstate" {
-  bucket                  = aws_s3_bucket.tfstate.id
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
-}
-
-resource "aws_dynamodb_table" "tfstate_lock" {
-  name         = "${var.project_name}-tfstate-lock"
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "LockID"
-
-  attribute {
-    name = "LockID"
-    type = "S"
   }
 }
 
@@ -150,8 +45,7 @@ resource "aws_iam_openid_connect_provider" "github" {
 
   url            = "https://token.actions.githubusercontent.com"
   client_id_list = ["sts.amazonaws.com"]
-  # 現在は AWS 側がルート CA を検証するため thumbprint は実質使われないが、
-  # API が必須項目として要求するため GitHub の中間 CA の値を渡す。
+  # 現在は AWS 側がルート CA を検証するため thumbprint は実質使われないが、API が必須項目として要求する
   thumbprint_list = ["6938fd4d98bab03faadb97b34396831e3780aea1"]
 }
 
@@ -163,63 +57,93 @@ data "aws_iam_openid_connect_provider" "github" {
 
 locals {
   github_oidc_arn = var.create_github_oidc_provider ? one(aws_iam_openid_connect_provider.github[*].arn) : one(data.aws_iam_openid_connect_provider.github[*].arn)
+
+  # sub クレームの前半。リネームしたリポジトリは ID 付きの形（repo:owner@id/repo@id）も来るので足せるようにする
+  subject_prefixes = {
+    for repo in var.repositories : repo => concat(
+      ["repo:${var.github_owner}/${repo}"],
+      lookup(var.extra_subject_prefixes, repo, []),
+    )
+  }
 }
 
-# GitHub Actions が OIDC で引き受けるデプロイ用ロール。
-#
-# description は AWS へ送られる値で、IAM が受け付ける文字は ASCII と Latin-1 に
-# 限られる（[\u0009\u000A\u000D\u0020-\u007E\u00A1-\u00FF]）。日本語を入れると
-# ValidationError になるため、説明はこのコメントに書き、属性は英語にする。
-resource "aws_iam_role" "github_actions" {
-  name        = "${var.project_name}-github-actions"
-  description = "Deploy role assumed by GitHub Actions via OIDC"
+data "aws_iam_policy_document" "deploy_trust" {
+  for_each = toset(var.repositories)
 
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Principal = {
-        Federated = local.github_oidc_arn
-      }
-      Action = "sts:AssumeRoleWithWebIdentity"
-      Condition = {
-        StringEquals = {
-          "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
-        }
-        StringLike = {
-          # このリポジトリのどのブランチ・タグからでも引き受けられる。
-          # ID 付き形式の sub については extra_assume_role_subs のコメントを参照。
-          "token.actions.githubusercontent.com:sub" = concat(
-            ["repo:${var.github_repo}:*"],
-            var.extra_assume_role_subs,
-          )
-        }
-      }
-    }]
-  })
+  statement {
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+    principals {
+      type        = "Federated"
+      identifiers = [local.github_oidc_arn]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+    # production 環境（deploy.yml）のジョブだけ。PR や他のブランチのジョブからは引き受けられない
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:sub"
+      values   = [for prefix in local.subject_prefixes[each.key] : "${prefix}:environment:production"]
+    }
+  }
 }
 
-# Terraform apply は IAM ロール・CloudFront・Lambda・API Gateway を作るため広い権限が要る。
+data "aws_iam_policy_document" "plan_trust" {
+  for_each = toset(var.repositories)
+
+  statement {
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+    principals {
+      type        = "Federated"
+      identifiers = [local.github_oidc_arn]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+    # PR のジョブだけ。フォークからの PR には GitHub が OIDC トークンを出さない
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:sub"
+      values   = [for prefix in local.subject_prefixes[each.key] : "${prefix}:pull_request"]
+    }
+  }
+}
+
+# IAM の description は ASCII と Latin-1 しか受け付けないので英語で書く（説明はこのコメントに）
+resource "aws_iam_role" "deploy" {
+  for_each = toset(var.repositories)
+
+  name               = "gha-deploy-${each.key}"
+  description        = "GitHub Actions deploy role for ${var.github_owner}/${each.key} (production environment only)"
+  assume_role_policy = data.aws_iam_policy_document.deploy_trust[each.key].json
+}
+
+# apply は IAM ロール・CloudFront・Lambda・API Gateway を作るため広い権限が要る。
 # 個人プロジェクトなので AdministratorAccess で運用するが、これは意図的な妥協。
-# 引き受けられるのは上の Condition により当該リポジトリの GitHub Actions のみ。
-resource "aws_iam_role_policy_attachment" "github_actions_admin" {
-  role       = aws_iam_role.github_actions.name
+# 引き受けられるのは当該リポジトリの production 環境のジョブだけ。
+resource "aws_iam_role_policy_attachment" "deploy_admin" {
+  for_each = toset(var.repositories)
+
+  role       = aws_iam_role.deploy[each.key].name
   policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
 }
 
-# ---- 出力 ----
+resource "aws_iam_role" "plan" {
+  for_each = toset(var.repositories)
 
-output "tfstate_bucket" {
-  description = "infra/main.tf の backend \"s3\" に書くバケット名"
-  value       = aws_s3_bucket.tfstate.id
+  name               = "gha-plan-${each.key}"
+  description        = "GitHub Actions read-only plan role for ${var.github_owner}/${each.key} (pull requests only)"
+  assume_role_policy = data.aws_iam_policy_document.plan_trust[each.key].json
 }
 
-output "tfstate_lock_table" {
-  description = "infra/main.tf の backend \"s3\" に書くロックテーブル名"
-  value       = aws_dynamodb_table.tfstate_lock.name
-}
+# plan は読むだけ（tfstate も ReadOnlyAccess で読める）。plan は -lock=false で実行し、ロックも書かない
+resource "aws_iam_role_policy_attachment" "plan_readonly" {
+  for_each = toset(var.repositories)
 
-output "github_actions_role_arn" {
-  description = "GitHub の Secrets に AWS_ROLE_ARN として登録する値"
-  value       = aws_iam_role.github_actions.arn
+  role       = aws_iam_role.plan[each.key].name
+  policy_arn = "arn:aws:iam::aws:policy/ReadOnlyAccess"
 }
