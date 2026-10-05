@@ -1,28 +1,60 @@
-import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { useGuest } from "@app/identity-client";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
 
-type Health = { status: "checking" } | { status: "ok" } | { status: "unreachable" };
-
-/** トップページ。アプリを作り始めたら中身を差し替える */
+/**
+ * トップページ。名前を聞かずに始められる流れの見本（docs/guest-flow.md）。
+ *
+ * アプリを作り始めたら「はじめる」を「ルームを作る」などに差し替える。
+ * そのボタンの中で ensureGuest() を呼べば、初めての人も入力なしで先へ進める。
+ */
 export default function HomePage() {
-  const [health, setHealth] = useState<Health>({ status: "checking" });
+  const { status, guest, ensureGuest } = useGuest();
+  const [starting, setStarting] = useState(false);
+  const [failed, setFailed] = useState(false);
 
-  useEffect(() => {
-    api
-      .request("/api/health")
-      .then(() => setHealth({ status: "ok" }))
-      .catch(() => setHealth({ status: "unreachable" }));
-  }, []);
+  const start = async () => {
+    setStarting(true);
+    setFailed(false);
+    try {
+      await ensureGuest();
+    } catch {
+      setFailed(true);
+    } finally {
+      setStarting(false);
+    }
+  };
 
   return (
-    <main className="mx-auto flex min-h-svh max-w-xl flex-col justify-center gap-4 px-4">
-      <h1 className="text-3xl font-bold">App Template</h1>
-      {health.status === "checking" && <p className="text-muted-foreground">API の状態を確認中…</p>}
-      {health.status === "ok" && <p>API: 稼働中</p>}
-      {health.status === "unreachable" && (
-        <p role="alert" className="text-destructive">
-          API に接続できない
-        </p>
+    <main className="mx-auto flex w-full max-w-xl flex-1 flex-col justify-center gap-4 px-4">
+      {status === "ready" ? (
+        <>
+          <h1 className="text-2xl font-bold sm:text-3xl">ようこそ、{guest.name} さん</h1>
+          <p className="text-muted-foreground">名前は右上からいつでも変えられます。</p>
+        </>
+      ) : (
+        <>
+          <h1 className="text-2xl font-bold sm:text-3xl">App Template</h1>
+          <p className="text-muted-foreground">名前を入力しなくても、すぐに始められます。</p>
+          <Button
+            size="lg"
+            className="self-start"
+            disabled={status === "loading" || starting}
+            onClick={start}
+          >
+            はじめる
+          </Button>
+          {failed && (
+            <p role="alert" className="text-destructive">
+              はじめられなかった。通信の状態を確かめて、もう一度押してください。
+            </p>
+          )}
+          {status === "error" && (
+            <p role="alert" className="text-destructive">
+              サーバーに接続できない。時間をおいて開き直してください。
+            </p>
+          )}
+        </>
       )}
     </main>
   );

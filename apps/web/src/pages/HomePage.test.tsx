@@ -1,25 +1,52 @@
 import { screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { fakeGuestSession, returningGuestSession } from "@/test-utils/guest";
 import { renderWithProviders } from "@/test-utils/render";
 import HomePage from "./HomePage";
 
 describe("HomePage", () => {
-  it("API が応答すれば稼働中と表示する", async () => {
-    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ status: "ok" })));
-    vi.stubGlobal("fetch", fetch);
-
+  it("初めての人にも名前の入力欄を出さず、すぐ始められるボタンだけを出す", async () => {
     renderWithProviders(<HomePage />);
 
-    expect(screen.getByText("API の状態を確認中…")).toBeInTheDocument();
-    expect(await screen.findByText("API: 稼働中")).toBeInTheDocument();
-    expect(fetch).toHaveBeenCalledWith("/api/health", expect.anything());
+    expect(await screen.findByRole("button", { name: "はじめる" })).toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 
-  it("API に届かなければその旨を表示する", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+  it("はじめるを押すと名前を聞かずにゲストになり、付いた名前と変え方を伝える", async () => {
+    const session = fakeGuestSession();
+    const { user } = renderWithProviders(<HomePage />, { guestSession: session });
 
-    renderWithProviders(<HomePage />);
+    await user.click(await screen.findByRole("button", { name: "はじめる" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("API に接続できない");
+    expect(session.ensure).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText("ようこそ、ねむいペンギン さん")).toBeInTheDocument();
+    expect(screen.getByText(/名前は右上からいつでも変えられます/)).toBeInTheDocument();
+  });
+
+  it("前に来たことがある人は、同じ名前で迎える", async () => {
+    renderWithProviders(<HomePage />, { guestSession: returningGuestSession() });
+
+    expect(await screen.findByText("ようこそ、ねむいペンギン さん")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "はじめる" })).not.toBeInTheDocument();
+  });
+
+  it("登録に失敗したらその旨を出し、もう一度押せる", async () => {
+    const session = fakeGuestSession({
+      ensure: vi.fn().mockRejectedValue(new TypeError("offline")),
+    });
+    const { user } = renderWithProviders(<HomePage />, { guestSession: session });
+
+    await user.click(await screen.findByRole("button", { name: "はじめる" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("はじめられなかった");
+    expect(screen.getByRole("button", { name: "はじめる" })).toBeEnabled();
+  });
+
+  it("前回のゲストを読み込めなかったら、その旨を出す", async () => {
+    renderWithProviders(<HomePage />, {
+      guestSession: fakeGuestSession({ get: vi.fn().mockRejectedValue(new Error("down")) }),
+    });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("サーバーに接続できない");
   });
 });
