@@ -134,8 +134,19 @@ yu-kod のアカウントでは書き込み済み（`012502956603`）。
 ## アプリを足す
 
 1. `yu-kod/app-template` の `infra/bootstrap/variables.tf` の `repositories` にリポジトリ名を足す（PR でマージ）
-2. CloudShell で「AWS アカウントの準備」の 2・4 を再実行する（`git -C ~/app-template pull` してから）。
-   増えるのは足したリポジトリのロールだけ
+2. CloudShell で下のブロックを丸ごと貼り、`Enter a value:` に `yes` と答える。増えるのは足したリポジトリのロールだけ
+
+   ```bash
+   cd ~ && \
+   curl -fsSLo /tmp/tf.zip https://releases.hashicorp.com/terraform/1.13.4/terraform_1.13.4_linux_amd64.zip && \
+   unzip -oq /tmp/tf.zip -d /tmp/tfbin && export PATH=/tmp/tfbin:$PATH TF_DATA_DIR=/tmp/tfdata && \
+   rm -rf ~/app-template && git clone -q https://github.com/yu-kod/app-template.git ~/app-template && \
+   cd ~/app-template/infra/bootstrap && ACCOUNT=$(aws sts get-caller-identity --query Account --output text) && \
+   terraform init -input=false -backend-config="bucket=tfstate-${ACCOUNT}-ap-northeast-1" -backend-config="region=ap-northeast-1" && \
+   terraform apply
+   ```
+
+   先頭の `cd ~` は消さないこと（前回 `~/app-template` の中で終わっていると、`rm -rf` で今いるフォルダを消して clone が失敗する）
 3. main へ push すればデプロイされる。手動で起動するなら Actions タブから Deploy を `workflow_dispatch` で実行する
 
 Secrets の登録は要らない（テンプレートからコピーされた `.github/aws-account-id` から ARN を組み立てる）。
