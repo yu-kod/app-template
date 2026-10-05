@@ -58,10 +58,16 @@ data "aws_iam_openid_connect_provider" "github" {
 locals {
   github_oidc_arn = var.create_github_oidc_provider ? one(aws_iam_openid_connect_provider.github[*].arn) : one(data.aws_iam_openid_connect_provider.github[*].arn)
 
-  # sub クレームの前半。リネームしたリポジトリは ID 付きの形（repo:owner@id/repo@id）も来るので足せるようにする
+  # sub クレームの前半。2026-07-15 以降に作ったリポジトリ（とリネームしたリポジトリ）は、
+  # ID 付きの形（repo:owner@ownerId/repo@repoId）で届く。owner は ID で固定し、リポジトリは
+  # 名前の直後の @ 以降（リポジトリ ID）だけを * にする。似た名前の別リポジトリ（repo-x@...）は
+  # 名前の直後が @ でないので一致しない
   subject_prefixes = {
     for repo in var.repositories : repo => concat(
-      ["repo:${var.github_owner}/${repo}"],
+      [
+        "repo:${var.github_owner}/${repo}",
+        "repo:${var.github_owner}@${var.github_owner_id}/${repo}@*",
+      ],
       lookup(var.extra_subject_prefixes, repo, []),
     )
   }
@@ -83,7 +89,7 @@ data "aws_iam_policy_document" "deploy_trust" {
     }
     # production 環境（deploy.yml）のジョブだけ。PR や他のブランチのジョブからは引き受けられない
     condition {
-      test     = "StringEquals"
+      test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
       values   = [for prefix in local.subject_prefixes[each.key] : "${prefix}:environment:production"]
     }
@@ -106,7 +112,7 @@ data "aws_iam_policy_document" "plan_trust" {
     }
     # PR のジョブだけ。フォークからの PR には GitHub が OIDC トークンを出さない
     condition {
-      test     = "StringEquals"
+      test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
       values   = [for prefix in local.subject_prefixes[each.key] : "${prefix}:pull_request"]
     }

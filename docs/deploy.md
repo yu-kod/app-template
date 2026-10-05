@@ -165,25 +165,16 @@ ACM 証明書（us-east-1）と Route 53 の検証レコード・A レコード�
 
 ### デプロイが `Assuming role with OIDC` を繰り返して進まない
 
-ロールの引き受けに失敗している。多いのは **`sub` クレームの形式**。リポジトリや owner を過去にリネームしていると、
-`sub` が `repo:owner/repo:...` ではなく `repo:owner@ownerId/repo@repoId:...` という **ID 付きの形式**で届くことがある
-（yu-kod/pusher-table と yu-kod/pop-art-trick で実際に起きた）。
+ロールの引き受けに失敗している。まず、そのリポジトリが `infra/bootstrap/variables.tf` の `repositories` に入っていて、
+CloudShell で apply 済みかを確認する。
 
-CloudTrail で `AssumeRoleWithWebIdentity` の実際の `sub` を確認し、`infra/bootstrap/variables.tf` の
-`extra_subject_prefixes` に足して再 apply する。
+次に多いのは **`sub` クレームの形式**。2026-07-15 以降に作ったリポジトリ（とリネームしたリポジトリ）では、
+`sub` が `repo:owner/repo:...` ではなく `repo:owner@ownerId/repo@repoId:...` という **ID 付きの形**で届く
+（[GitHub の告知](https://github.blog/changelog/2026-04-23-immutable-subject-claims-for-github-actions-oidc-tokens)）。
+bootstrap は両方の形を許すので普通は問題にならないが、それ以外の形で届いた場合は、CloudTrail の
+`AssumeRoleWithWebIdentity` で実際の `sub` を確認し、`extra_subject_prefixes` に足して再 apply する。
 
-```hcl
-extra_subject_prefixes = {
-  "<repo>" = ["repo:yu-kod@48035533/<repo>@<repoId>"]
-}
-```
-
-**ワイルドカードを広げて対処しないこと。** 似た名前の別リポジトリまで引き受けられてしまう。ID は以下で確認できる。
-
-```bash
-curl -s https://api.github.com/users/yu-kod | grep '"id"'
-curl -s https://api.github.com/repos/yu-kod/<repo> | grep '"id"'
-```
+**owner 全体へワイルドカードを広げて対処しないこと。** owner のどのリポジトリからも引き受けられてしまう。
 
 ### PR に plan のコメントが付かない
 
