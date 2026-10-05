@@ -121,3 +121,6 @@ pop-art-trick / pusher-table の比較から、次を共通部品にする（設
 - `packages/game-platform` と `infra/modules/websocket` / `infra/modules/scheduler`
 - Playwright の E2E（setnote の `frontend/e2e/` を移植）
 - CI 失敗時の自動修復と Dependabot の自動マージ（setnote の `ci-gate.yml`）
+- アプリを足すときの CloudShell をなくす：`infra/bootstrap` を app-template の GitHub Actions で apply し、
+  `repositories` に名前を足す PR のマージだけでロールができるようにする（一般的な「中央の IaC リポジトリで
+  リポジトリごとのロールを管理する」形）。owner 全体を信頼する共通ロールは、推奨されないので採らない
