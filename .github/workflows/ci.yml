@@ -82,7 +82,9 @@ jobs:
 
       - name: Terraform validate
         run: |
+          # infra/bootstrap はテンプレート（yu-kod/app-template）にだけある
           for dir in infra infra/bootstrap; do
+            [ -d "$dir" ] || continue
             terraform -chdir="$dir" init -backend=false -input=false
             terraform -chdir="$dir" validate
           done
