@@ -1,6 +1,15 @@
 # ゲストの名前の流れ
 
-ログインのないアプリ（ゲーム型）で、利用者に名前をどう付けてもらうか。
+ログインのないアプリで、利用者に名前をどう付けてもらうか。
+
+**名前を聞くタイミングはアプリが決める。** 部品（`@app/identity-client`）はどちらの流れにも使える。
+
+| 流れ | 向いているアプリ | 呼び方 |
+|---|---|---|
+| 名前を後回しにする（このページの「方針」） | Web アプリ。名前の入力は手間でしかない | `ensure()` — サーバーが仮の名前を付ける |
+| 最初に名前（とアバター）を選ばせる | ゲーム。選ぶこと自体が「これから遊ぶ」演出になる（Gartic Phone など） | `ensure(name)` — 選んだ名前で登録。すでにゲストならその名前に変える |
+
+どちらでも、一度付いた名前はトークンとともに残り、次からは選び直さずに済む。
 
 ## これまでの問題（pop-art-trick / pusher-table）
 
@@ -37,12 +46,36 @@
 |---|---|---|
 | `POST /api/guests`（`name` は省略可） | `packages/identity` | 登録。省略すると仮の名前を付ける |
 | `PATCH /api/guests/me` | `packages/identity` | 名前の変更 |
-| `createGuestSession()` | `packages/identity-client` | トークンの保存、`get` / `ensure`（同時に呼ばれても登録は1回）/ `rename` |
-| `GuestProvider` / `useGuest()` | `packages/identity-client` | React から今のゲストを読む。`status` は loading / anonymous / ready / error |
+| `createGuestSession()` | `@app/identity-client` | トークンの保存、`get` / `ensure(name?)`（同時に呼ばれても登録は1回）/ `rename`。状態を `getState()` / `subscribe()` で読める。React に依存しない |
+| `GuestProvider` / `useGuest()` | `@app/identity-client/react` | React から今のゲストを読む薄いアダプタ。`status` は idle / loading / anonymous / ready / error |
 | `GuestNameChip` | `apps/web/src/features/guest` | ヘッダーの名前チップ。押すとその場で編集（Enter で保存、Esc で取り消し） |
 
 見た目を持つのはアプリ側の `GuestNameChip` だけで、`packages/identity-client` は見た目を持たない。
 アプリごとにデザインを変えても、登録や保存の振る舞いは共通のまま使える。
+
+### ゲームエンジンから使う
+
+ゲームのクライアントは React を使わず、セッションを直接購読する。
+
+```ts
+import { createGuestSession } from "@app/identity-client";
+
+const session = createGuestSession({ api, storage });
+
+// エントリー画面のシーン
+class EntryScene extends Phaser.Scene {
+  create() {
+    const unsubscribe = session.subscribe(() => this.render(session.getState()));
+    this.events.once("shutdown", unsubscribe);
+    void session.get(); // 前に来た人なら、選び直さずに名前が出る
+  }
+
+  async onSubmit(name: string) {
+    await session.ensure(name); // 選んだ名前で登録（すでにゲストならその名前に変える）
+    this.scene.start("Lobby");
+  }
+}
+```
 
 ## 細かい決め事
 

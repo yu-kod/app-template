@@ -5,10 +5,5 @@ export {
   type Guest,
   type GuestSession,
   type GuestSessionOptions,
-} from "./guest-session.js";
-export {
-  GuestProvider,
-  useGuest,
-  type GuestContextValue,
   type GuestState,
-} from "./guest-context.js";
+} from "./guest-session.js";

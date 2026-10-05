@@ -1,14 +1,13 @@
-import type { GuestSession } from "@app/identity-client";
 import { ApiRequestError } from "@app/web-core";
 import { screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { returningGuestSession } from "@/test-utils/guest";
+import { newcomer, penguin, returning, type GuestRoutes } from "@/test-utils/guest";
 import { renderWithProviders } from "@/test-utils/render";
 import { GuestNameChip } from "./GuestNameChip";
 
-function setup(overrides: Partial<GuestSession> = {}) {
-  const session = { ...returningGuestSession(), ...overrides };
-  return { session, ...renderWithProviders(<GuestNameChip />, { guestSession: session }) };
+function setup(overrides: GuestRoutes = {}) {
+  const guest = returning(penguin, overrides);
+  return { ...guest, ...renderWithProviders(<GuestNameChip />, { guestSession: guest.session }) };
 }
 
 describe("GuestNameChip", () => {
@@ -21,14 +20,15 @@ describe("GuestNameChip", () => {
   });
 
   it("まだゲストでなければ何も出さない（名前を入力させない）", async () => {
-    const { container, session } = setup({ get: vi.fn().mockResolvedValue(null) });
+    const { session } = newcomer();
+    const { container } = renderWithProviders(<GuestNameChip />, { guestSession: session });
 
-    await vi.waitFor(() => expect(session.get).toHaveBeenCalled());
+    await vi.waitFor(() => expect(session.getState().status).toBe("anonymous"));
     expect(container).toBeEmptyDOMElement();
   });
 
   it("押すと今の名前が入った入力欄になり、確定すると名前が変わる", async () => {
-    const { user, session } = setup();
+    const { user, sent } = setup();
     await user.click(await screen.findByRole("button", { name: /名前を変える/ }));
 
     const input = screen.getByRole("textbox", { name: "名前" });
@@ -38,20 +38,20 @@ describe("GuestNameChip", () => {
     await user.clear(input);
     await user.type(input, "  Alice {Enter}");
 
-    expect(session.rename).toHaveBeenCalledWith("Alice");
+    expect(sent("PATCH /api/guests/me")).toEqual([{ name: "Alice" }]);
     expect(
       await screen.findByRole("button", { name: "名前を変える（今: Alice）" })
     ).toBeInTheDocument();
   });
 
   it("Escape で取り消すと元の名前に戻り、サーバーには送らない", async () => {
-    const { user, session } = setup();
+    const { user, sent } = setup();
     await user.click(await screen.findByRole("button", { name: /名前を変える/ }));
 
     await user.type(screen.getByRole("textbox", { name: "名前" }), "xyz{Escape}");
 
     expect(screen.getByRole("button", { name: /今: ねむいペンギン/ })).toBeInTheDocument();
-    expect(session.rename).not.toHaveBeenCalled();
+    expect(sent("PATCH /api/guests/me")).toEqual([]);
   });
 
   it("取り消しボタンでも元に戻る", async () => {
@@ -64,12 +64,12 @@ describe("GuestNameChip", () => {
   });
 
   it("名前を変えずに確定したらサーバーには送らない", async () => {
-    const { user, session } = setup();
+    const { user, sent } = setup();
     await user.click(await screen.findByRole("button", { name: /名前を変える/ }));
 
     await user.click(screen.getByRole("button", { name: "保存" }));
 
-    expect(session.rename).not.toHaveBeenCalled();
+    expect(sent("PATCH /api/guests/me")).toEqual([]);
     expect(screen.getByRole("button", { name: /今: ねむいペンギン/ })).toBeInTheDocument();
   });
 
@@ -91,11 +91,9 @@ describe("GuestNameChip", () => {
 
   it("サーバーに断られたら理由を出し、入力欄のまま直せる", async () => {
     const { user } = setup({
-      rename: vi
-        .fn()
-        .mockRejectedValue(
-          new ApiRequestError(400, "VALIDATION_ERROR", "名前は20文字以内にしてください")
-        ),
+      "PATCH /api/guests/me": () => {
+        throw new ApiRequestError(400, "VALIDATION_ERROR", "名前は20文字以内にしてください");
+      },
     });
     await user.click(await screen.findByRole("button", { name: /名前を変える/ }));
 
@@ -106,7 +104,11 @@ describe("GuestNameChip", () => {
   });
 
   it("サーバーに届かなかったら、その旨を出す", async () => {
-    const { user } = setup({ rename: vi.fn().mockRejectedValue(new TypeError("offline")) });
+    const { user } = setup({
+      "PATCH /api/guests/me": () => {
+        throw new TypeError("offline");
+      },
+    });
     await user.click(await screen.findByRole("button", { name: /名前を変える/ }));
 
     await user.type(screen.getByRole("textbox", { name: "名前" }), "!{Enter}");

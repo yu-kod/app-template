@@ -201,3 +201,102 @@ describe("保存先の名前", () => {
     expect(localStorage.getItem("three-marks:guest")).toBe(JSON.stringify("t"));
   });
 });
+
+describe("ensure(name)", () => {
+  it("名前を渡すとその名前で登録する（ゲームのエントリー画面で選んだ名前など）", async () => {
+    const { session, fetch } = setup({
+      "POST /api/guests": (init) =>
+        json({ guest: { ...alice, name: JSON.parse(String(init.body)).name }, token: "t" }, 201),
+    });
+
+    await expect(session.ensure("ゆう")).resolves.toMatchObject({ name: "ゆう" });
+    expect(fetch.mock.calls[0]![1]!.body).toBe(JSON.stringify({ name: "ゆう" }));
+  });
+
+  it("すでにゲストなら、渡した名前に変える", async () => {
+    localStorage.setItem(GUEST_TOKEN_KEY, JSON.stringify("t-1"));
+    const { session } = setup({
+      "GET /api/guests/me": () => json({ guest: alice }),
+      "PATCH /api/guests/me": () => json({ guest: { ...alice, name: "ゆう" } }),
+    });
+
+    await expect(session.ensure("ゆう")).resolves.toMatchObject({ name: "ゆう" });
+  });
+
+  it("すでに同じ名前なら変更を送らない", async () => {
+    localStorage.setItem(GUEST_TOKEN_KEY, JSON.stringify("t-1"));
+    const { session, fetch } = setup({ "GET /api/guests/me": () => json({ guest: alice }) });
+
+    await session.ensure(alice.name);
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("状態（getState / subscribe）", () => {
+  it("最初は idle", () => {
+    expect(setup({}).session.getState()).toEqual({ status: "idle", guest: null });
+  });
+
+  it("読み込み中は loading、終わったら ready。変わるたびに購読者へ知らせる", async () => {
+    localStorage.setItem(GUEST_TOKEN_KEY, JSON.stringify("t-1"));
+    const { session } = setup({ "GET /api/guests/me": () => json({ guest: alice }) });
+    const seen: string[] = [];
+    session.subscribe(() => seen.push(session.getState().status));
+
+    const loading = session.get();
+    expect(session.getState().status).toBe("loading");
+    await loading;
+
+    expect(session.getState()).toEqual({ status: "ready", guest: alice });
+    expect(seen).toEqual(["loading", "ready"]);
+  });
+
+  it("まだゲストでなければ anonymous", async () => {
+    const { session } = setup({});
+
+    await session.get();
+
+    expect(session.getState()).toEqual({ status: "anonymous", guest: null });
+  });
+
+  it("読み込みに失敗したら error", async () => {
+    localStorage.setItem(GUEST_TOKEN_KEY, JSON.stringify("t-1"));
+    const { session } = setup({ "GET /api/guests/me": () => json({}, 503) });
+
+    await session.get().catch(() => {});
+
+    expect(session.getState().status).toBe("error");
+  });
+
+  it("登録・名前の変更でも ready の中身が変わる", async () => {
+    const { session } = setup({
+      "POST /api/guests": () => json({ guest: alice, token: "t" }, 201),
+      "PATCH /api/guests/me": () => json({ guest: { ...alice, name: "ゆう" } }),
+    });
+
+    await session.ensure();
+    expect(session.getState()).toEqual({ status: "ready", guest: alice });
+
+    await session.rename("ゆう");
+    expect(session.getState().guest?.name).toBe("ゆう");
+  });
+
+  it("状態が変わらなければ同じオブジェクトを返す（React の useSyncExternalStore が無限に描き直さない）", async () => {
+    const { session } = setup({});
+    await session.get();
+
+    expect(session.getState()).toBe(session.getState());
+  });
+
+  it("購読をやめたら知らせない", async () => {
+    const { session } = setup({});
+    const listener = vi.fn();
+    const unsubscribe = session.subscribe(listener);
+
+    unsubscribe();
+    await session.get();
+
+    expect(listener).not.toHaveBeenCalled();
+  });
+});

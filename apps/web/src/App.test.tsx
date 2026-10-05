@@ -1,7 +1,7 @@
 import { screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import App from "./App";
-import { returningGuestSession } from "./test-utils/guest";
+import { returning } from "./test-utils/guest";
 import { renderWithProviders } from "./test-utils/render";
 
 describe("App", () => {
@@ -12,7 +12,7 @@ describe("App", () => {
   });
 
   it("どのページでも、ヘッダーに自分の名前が出る", async () => {
-    renderWithProviders(<App />, { route: "/no-such-page", guestSession: returningGuestSession() });
+    renderWithProviders(<App />, { route: "/no-such-page", guestSession: returning().session });
 
     const header = screen.getByRole("banner");
     expect(header).toHaveTextContent("App Template");
