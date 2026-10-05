@@ -10,6 +10,7 @@ pop-art-trick / pusher-table（ログインなし・ロビーのあるオンラ�
 ① 土台           — このリポジトリをコピーして使う（設定、CI、CLAUDE.md、skills、Terraform の組み立て）
 ② 共有部品       — packages/*（server-core / web-core / identity / identity-client / これから game-platform）
                    infra/modules/*（static-site / http-api / app-table / これから cognito・websocket・scheduler）
+                   infra/bootstrap（AWS アカウントの準備。テンプレートで一元管理）
 ③ アプリ固有     — apps/* の中身、docs/spec.md、CLAUDE.md の「このアプリ固有のルール」
 ```
 
@@ -46,16 +47,18 @@ Web アプリとゲームでは、見た目だけでなく体験の流れも違�
    | 場所 | 置き換えるもの |
    |---|---|
    | `package.json` | `name` |
-   | `infra/main.tf` | `backend "s3"` のバケット名・ロックテーブル名 |
-   | `infra/variables.tf` | `project_name` の既定値 |
    | `apps/web/index.html` | `<title>` |
    | `CLAUDE.md` / `README.md` | 見出しと説明 |
+
+   Terraform は書き換え不要（state のキーと `project_name` はリポジトリ名から決まる）。
+   ドメインなどのアプリの設定は `infra/terraform.tfvars` に書く。
+   `infra/bootstrap/` はアカウントで1つの準備用なので、アプリ側のコピーは使わない（`yu-kod/app-template` のものを使う）
 
 3. `npm install` し直して `package-lock.json` を更新する
 4. `CLAUDE.md` の「このアプリ固有のルール」、`.claude/skills/coding-standards.md` の「0.」、
    `.claude/skills/ui-design.md` の「0.」を書く
 5. GitHub のリポジトリ設定（下記）を行う
-6. `docs/deploy.md` の「初回だけ必要な作業」で AWS 側を用意する
+6. `docs/deploy.md` の「アプリを足す」で AWS 側のロールを作り、Secrets を登録する
 
 ### GitHub のリポジトリ設定
 
