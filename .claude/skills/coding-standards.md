@@ -267,7 +267,7 @@ test-utils/    — テストヘルパー、ファクトリ
 
 ### State 管理
 
-- S3 バックエンド + DynamoDB ロックテーブル（`infra/bootstrap` で作る）
+- S3 バックエンド + S3 のネイティブロック（`use_lockfile`）。バケットはアカウントで1つ（`infra/bootstrap`）
 - state バケットはバージョニング有効化（破損からの復旧）
 - state は暗号化必須（中に平文の秘密情報が含まれる）
 - state バケットへのアクセスは CI/CD ロールと管理者のみに制限
