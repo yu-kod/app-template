@@ -66,7 +66,7 @@ Web アプリとゲームでは、見た目だけでなく体験の流れも違�
 
 - Settings → General → Pull Requests
   - 「Allow auto-merge」を有効にする
-  - 「Automatically delete head branches」を有効にする
+  - 「Automatically delete head branches」を有効にする（オフのまま溜まったブランチは、Actions の「Delete merged branches」で片付ける）
 - Settings → Rules → Rulesets で `main` に対して
   - 「Require a pull request before merging」
   - 「Require status checks to pass」に **`ci`** を1つだけ指定する（`.github/workflows/ci.yml` の集約ジョブ）
