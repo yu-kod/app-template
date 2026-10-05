@@ -6,7 +6,12 @@ export {
   type GuestService,
   type GuestServiceDeps,
 } from "./guest-service.js";
-export { createGuestRoutes, GUEST_NAME_MAX_LENGTH } from "./guest-routes.js";
+export {
+  createGuestRoutes,
+  GUEST_NAME_MAX_LENGTH,
+  type GuestRoutesOptions,
+} from "./guest-routes.js";
+export { generateGuestName } from "./guest-name.js";
 export {
   createInMemoryGuestStore,
   type GuestChanges,
