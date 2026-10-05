@@ -58,7 +58,7 @@ Web アプリとゲームでは、見た目だけでなく体験の流れも違�
 4. `CLAUDE.md` の「このアプリ固有のルール」、`.claude/skills/coding-standards.md` の「0.」、
    `.claude/skills/ui-design.md` の「0.」を書く
 5. GitHub のリポジトリ設定（下記）を行う
-6. `docs/deploy.md` の「アプリを足す」で AWS 側のロールを作り、Secrets を登録する
+6. `docs/deploy.md` の「アプリを足す」で AWS 側のロールを作る（Secrets の登録は要らない）
 
 ### GitHub のリポジトリ設定
 
