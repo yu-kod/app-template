@@ -2,9 +2,10 @@
   "name": "@app/identity-client",
   "private": true,
   "type": "module",
-  "description": "ブラウザ側のゲストセッション（トークンの保存、遅延登録、名前の変更）と React のフック。見た目は持たない",
+  "description": "ブラウザ側のゲストセッション（React にもゲームエンジンにも依存しないストア）と、React 用のアダプタ（./react）。見た目は持たない",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./react": "./src/react.tsx"
   },
   "scripts": {
     "test": "vitest run --coverage",

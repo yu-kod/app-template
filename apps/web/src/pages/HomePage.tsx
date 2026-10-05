@@ -1,4 +1,4 @@
-import { useGuest } from "@app/identity-client";
+import { useGuest } from "@app/identity-client/react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 

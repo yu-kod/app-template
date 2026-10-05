@@ -1,4 +1,5 @@
-import { GUEST_NAME_MAX_LENGTH, useGuest } from "@app/identity-client";
+import { GUEST_NAME_MAX_LENGTH } from "@app/identity-client";
+import { useGuest } from "@app/identity-client/react";
 import { ApiRequestError } from "@app/web-core";
 import { useState, type FormEvent, type KeyboardEvent } from "react";
 import { Button } from "@/components/ui/button";

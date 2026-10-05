@@ -1,4 +1,4 @@
-import { GuestProvider } from "@app/identity-client";
+import { GuestProvider } from "@app/identity-client/react";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";

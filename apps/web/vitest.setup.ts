@@ -54,4 +54,5 @@ if (typeof DOMRect.fromRect !== "function") {
 
 afterEach(() => {
   cleanup();
+  localStorage.clear();
 });
