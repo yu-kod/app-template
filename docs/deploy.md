@@ -61,9 +61,9 @@ AWS アカウントで1つのバケット `tfstate-<アカウントID>-ap-northe
 | `gha-deploy-<repo>` | production 環境のジョブ（deploy.yml）だけ | AdministratorAccess（apply 用。意図的な妥協） |
 | `gha-plan-<repo>` | PR のジョブだけ | ReadOnlyAccess（plan 用） |
 
-**Secrets の登録は要らない。** ロールの ARN は `arn:aws:iam::<アカウントID>:role/gha-<deploy|plan>-<リポジトリ名>` と決まっているので、
-ワークフロー（`.github/actions/aws-login`）が `.github/aws-account-id` とリポジトリ名から組み立てる。
-アカウント ID は秘密情報ではない（AWS の見解）ので、リポジトリに書いてよい。
+ロールの ARN は `arn:aws:iam::<アカウントID>:role/gha-<deploy|plan>-<リポジトリ名>` と決まっているので、
+ワークフロー（`.github/actions/aws-login`）が Secrets の `AWS_ACCOUNT_ID` とリポジトリ名から組み立てる。
+アカウント ID は AWS の見解では秘密情報ではないが、リポジトリには書かない（テンプレートから作ったリポジトリへ広がらないように）。
 別のロールを使いたいときだけ、Secrets の `AWS_ROLE_ARN` / `AWS_PLAN_ROLE_ARN` で上書きできる。
 
 PR のジョブは本番を書き換えられない。フォークからの PR には GitHub が OIDC トークンを出さない。
@@ -124,10 +124,10 @@ GitHub の OIDC プロバイダーは、既にアカウントにあるものを�
 まだ無いアカウントでは `terraform apply -var create_github_oidc_provider=true` にする。
 有無は `aws iam list-open-id-connect-providers` に `token.actions.githubusercontent.com` があるかで分かる。
 
-### 5. アカウント ID をテンプレートに書く
+### 5. アカウント ID を控える
 
-最初の `aws sts get-caller-identity` の `Account`（12桁）を、`yu-kod/app-template` の `.github/aws-account-id` に書いて PR でマージする。
-yu-kod のアカウントでは書き込み済み（`012502956603`）。
+最初の `aws sts get-caller-identity` の `Account`（12桁）を控えておく。アプリのリポジトリごとに Secrets の `AWS_ACCOUNT_ID` に登録する（「アプリを足す」）。
+リポジトリのファイルや docs には書かない。
 
 ---
 
@@ -147,9 +147,11 @@ yu-kod のアカウントでは書き込み済み（`012502956603`）。
    ```
 
    先頭の `cd ~` は消さないこと（前回 `~/app-template` の中で終わっていると、`rm -rf` で今いるフォルダを消して clone が失敗する）
-3. main へ push すればデプロイされる。手動で起動するなら Actions タブから Deploy を `workflow_dispatch` で実行する
+3. アプリのリポジトリの Settings → Secrets and variables → Actions → Repository secrets に、
+   `AWS_ACCOUNT_ID`（「アカウント ID を控える」の12桁）を登録する。CloudShell で `aws sts get-caller-identity --query Account --output text` でも分かる
+4. main へ push すればデプロイされる。手動で起動するなら Actions タブから Deploy を `workflow_dispatch` で実行する
 
-Secrets の登録は要らない（テンプレートからコピーされた `.github/aws-account-id` から ARN を組み立てる）。
+`AWS_ACCOUNT_ID` が無いと、デプロイは失敗し（ログに「AWS_ACCOUNT_ID が未登録」と出る）、PR の plan は飛ばされる。
 ロールを作る前にデプロイが走ると、ロールの引き受けで失敗する（ログに「repositories に入っているか確認」と出る）。
 
 初回は CloudFront ディストリビューションの作成に 5〜10 分かかる。カスタムドメインなら、ACM 証明書の DNS 検証にさらに数分かかる。
@@ -190,7 +192,7 @@ bootstrap は両方の形を許すので普通は問題にならないが、そ�
 ### PR に plan のコメントが付かない
 
 テンプレート自身、Dependabot の PR、フォークからの PR では plan ジョブを飛ばす（Dependabot とフォークの PR には OIDC トークンが出ない）。
-`.github/aws-account-id` が空でも飛ばす（ジョブの Summary に notice が出る）。
+Secrets の `AWS_ACCOUNT_ID` が未登録でも飛ばす（ジョブの Summary に notice が出る）。
 
 ### Terraform のロックが残った
 

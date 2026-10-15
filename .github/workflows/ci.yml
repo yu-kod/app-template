@@ -112,6 +112,7 @@ jobs:
         uses: ./.github/actions/aws-login
         with:
           role: plan
+          account-id: ${{ secrets.AWS_ACCOUNT_ID }}
           role-arn: ${{ secrets.AWS_PLAN_ROLE_ARN }}
           required: "false"
 

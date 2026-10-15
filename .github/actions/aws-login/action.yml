@@ -1,13 +1,15 @@
 name: AWS login (OIDC)
 description: >
   このリポジトリ用の GitHub Actions ロールを OIDC で引き受ける。
-  ロールの ARN は .github/aws-account-id とリポジトリ名から組み立てる
+  ロールの ARN はアカウント ID（Secrets の AWS_ACCOUNT_ID）とリポジトリ名から組み立てる
   （arn:aws:iam::<アカウントID>:role/gha-<deploy|plan>-<リポジトリ名>。infra/bootstrap と同じ規則）。
-  Secrets の登録は要らない。
 inputs:
   role:
     description: deploy（production 環境のジョブ）か plan（PR のジョブ）
     required: true
+  account-id:
+    description: AWS アカウント ID（12桁）。呼び出し側で secrets.AWS_ACCOUNT_ID を渡す
+    default: ""
   role-arn:
     description: 組み立てた ARN の代わりに使う ARN（Secrets で上書きしたいときだけ）
     default: ""
@@ -29,6 +31,7 @@ runs:
       env:
         ROLE: ${{ inputs.role }}
         ROLE_ARN: ${{ inputs.role-arn }}
+        ACCOUNT_ID: ${{ inputs.account-id }}
         REQUIRED: ${{ inputs.required }}
         REPO: ${{ github.event.repository.name }}
       run: |
@@ -37,17 +40,17 @@ runs:
           *) echo "::error::role は deploy か plan（$ROLE）"; exit 1 ;;
         esac
         if [ -z "$ROLE_ARN" ]; then
-          account="$(tr -d '[:space:]' < .github/aws-account-id 2>/dev/null || true)"
+          account="$(printf '%s' "$ACCOUNT_ID" | tr -d '[:space:]')"
           if [ -n "$account" ]; then
             ROLE_ARN="arn:aws:iam::${account}:role/gha-${ROLE}-${REPO}"
           fi
         fi
         if [ -z "$ROLE_ARN" ]; then
           if [ "$REQUIRED" = "true" ]; then
-            echo "::error::.github/aws-account-id が空です。docs/deploy.md の「AWS アカウントの準備」を参照してください。"
+            echo "::error::Secrets の AWS_ACCOUNT_ID が未登録です。docs/deploy.md の「AWS アカウントの準備」を参照してください。"
             exit 1
           fi
-          echo "::notice::.github/aws-account-id が空なので AWS を使う処理を飛ばす（docs/deploy.md）"
+          echo "::notice::Secrets の AWS_ACCOUNT_ID が未登録なので AWS を使う処理を飛ばす（docs/deploy.md）"
           echo "configured=false" >> "$GITHUB_OUTPUT"
           exit 0
         fi
