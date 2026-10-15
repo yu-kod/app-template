@@ -40,12 +40,13 @@ jobs:
         with:
           terraform_wrapper: false
 
-      # ロールの ARN は .github/aws-account-id とリポジトリ名から組み立てる（Secrets は要らない）。
+      # ロールの ARN は Secrets の AWS_ACCOUNT_ID とリポジトリ名から組み立てる。
       # Secrets に AWS_ROLE_ARN があればそちらを使う
       - name: Configure AWS credentials
         uses: ./.github/actions/aws-login
         with:
           role: deploy
+          account-id: ${{ secrets.AWS_ACCOUNT_ID }}
           role-arn: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
