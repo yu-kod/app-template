@@ -25,7 +25,7 @@ variable "repositories" {
     テンプレートそのもの（app-template）はデプロイしないので入れない。
   DESC
   type        = list(string)
-  default     = ["three-marks"]
+  default     = ["three-marks", "stellar-forge"]
 }
 
 variable "extra_subject_prefixes" {
